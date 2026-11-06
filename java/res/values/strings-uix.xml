@@ -86,22 +86,43 @@
     <string name="action_clipboard_manager_delete_corrupted_clipboard_button">Delete</string>
     <string name="action_clipboard_manager_error_clipboard_history_disabled_title">Clipboard History Inactive</string>
     <string name="action_clipboard_manager_error_clipboard_history_disabled_text_v2">To save clipboard items, you can enable clipboard history. This will keep up to <xliff:g id="numItems" example="25">%1$s</xliff:g> items for <xliff:g id="numDays" example="3">%2$s</xliff:g> days (pinned items are exempt). You can configure this in settings.</string>
+    <string name="action_clipboard_manager_error_clipboard_history_disabled_text_v3">To save clipboard items, you can enable clipboard history. Everything you copy is kept until you delete it, unless you turn on auto-delete in settings. Pinned items are never auto-deleted.</string>
     <string name="action_clipboard_manager_enable_clipboard_history_button">Enable Clipboard History</string>
+    <!-- Section headers in the clipboard history -->
+    <string name="action_clipboard_manager_section_pinned">Pinned</string>
+    <string name="action_clipboard_manager_section_recent">Recent</string>
+    <!-- Banner shown in the clipboard history offering to add screenshots to it -->
+    <string name="action_clipboard_manager_screenshot_prompt_title">Paste your screenshots</string>
+    <string name="action_clipboard_manager_screenshot_prompt_text">Screenshots you take can show up here automatically, ready to paste into any app.</string>
+    <string name="action_clipboard_manager_screenshot_prompt_dismiss">Not now</string>
+    <string name="action_clipboard_manager_screenshot_prompt_enable">Turn on</string>
     <!-- This message is shown when we're typing in a text field does not support image insertion ("app" refers to the external app that is providing the text field) -->
     <string name="action_clipboard_manager_error_app_image_insertion_unsupported">App does not support image insertion</string>
     <string name="action_clipboard_manager_settings_title">Clipboard Manager Settings</string>
     <string name="action_clipboard_manager_settings_save_images">Save copied images</string>
-    <string name="action_clipboard_manager_settings_save_screenshots">Save recent screenshots</string>
+    <string name="action_clipboard_manager_settings_save_screenshots">Add screenshots to clipboard</string>
+    <string name="action_clipboard_manager_settings_save_screenshots_subtitle_v2">New screenshots are added to your clipboard history automatically. Requires access to your photos.</string>
+    <string name="action_clipboard_manager_settings_save_screenshots_subtitle_enabled">New screenshots are added to your clipboard history and offered in the suggestion bar for a few minutes</string>
+    <string name="action_clipboard_manager_settings_save_screenshots_permission_missing">Photo access is missing. Turn this off and on again to grant it, and choose \"Allow all\".</string>
     <string name="action_clipboard_manager_settings_save_screenshots_subtitle">You\'ll need to grant permission to access your screenshots</string>
     <string name="action_clipboard_manager_settings_hours_to_keep_clips">Hours to keep unpinned clips</string>
     <string name="action_clipboard_manager_settings_maximum_clips">Number of unpinned clips to keep</string>
+    <string name="action_clipboard_manager_settings_auto_delete_section">Auto-delete</string>
+    <string name="action_clipboard_manager_settings_auto_delete">Auto-delete unpinned clips</string>
+    <string name="action_clipboard_manager_settings_auto_delete_subtitle_off">Off: clips are kept forever until you delete them</string>
+    <string name="action_clipboard_manager_settings_auto_delete_subtitle_on">Unpinned clips are deleted using the limits below. Pinned clips are never deleted.</string>
+    <string name="action_clipboard_manager_settings_auto_delete_after">Delete unpinned clips after</string>
+    <string name="action_clipboard_manager_settings_auto_delete_never">Never</string>
+    <string name="action_clipboard_manager_settings_auto_delete_no_limit">No limit</string>
+    <string name="action_clipboard_manager_settings_image_storage_limit">Storage limit for unpinned images</string>
+    <string name="action_clipboard_manager_settings_other_section">Other</string>
     <string name="action_clipboard_manager_settings_save_sensitive_clips">Save sensitive clips</string>
     <string name="action_clipboard_manager_settings_save_sensitive_clips_subtitle">If enabled, it will save items from password managers, incognito windows, etc</string>
     <string name="action_clipboard_manager_settings_list_layout">Use vertical list layout instead of grid</string>
     <string name="action_clipboard_manager_settings_show_pinned_above_others">Keep pinned clips on top</string>
     <string name="action_clipboard_manager_settings_skip_delete_confirmation">Skip confirmation when deleting unpinned clips</string>
 
-    <string name="action_clipboard_manager_settings_show_quick_clips">Show recently copied text in suggestion bar</string>
+    <string name="action_clipboard_manager_settings_show_quick_clips">Show recently copied text and screenshots in suggestion bar</string>
 
     <!-- For keyboard modes action -->
     <string name="action_keyboard_modes_title">Keyboard Modes</string>

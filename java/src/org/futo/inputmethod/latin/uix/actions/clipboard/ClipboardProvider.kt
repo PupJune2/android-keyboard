@@ -7,9 +7,11 @@ import android.content.UriMatcher
 import android.database.Cursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import androidx.core.net.toUri
 import org.futo.inputmethod.latin.BuildConfig
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 
 val CLIPBOARD_AUTHORITY = BuildConfig.APPLICATION_ID + ".clipboard"
@@ -27,12 +29,29 @@ data class ClipboardPasteRequest(
 )
 
 object ClipboardProviderState {
-    val requests: HashMap<UUID, ClipboardPasteRequest> = HashMap()
+    // Written from the main thread, read from binder threads when the target app opens the file
+    val requests: ConcurrentHashMap<UUID, ClipboardPasteRequest> = ConcurrentHashMap()
 
     fun addRequest(request: ClipboardPasteRequest): UUID {
+        val now = System.currentTimeMillis()
+        requests.entries.removeAll { it.value.expiration < now }
+
         val uuid = UUID.randomUUID()
         requests.put(uuid, request)
         return uuid
+    }
+
+    /** Creates a temporary content:// URI through which other apps can read the given file */
+    fun uriForFile(file: File, mimeType: String, validForMs: Long = 5L * 60L * 1000L): Uri {
+        val request = addRequest(
+            ClipboardPasteRequest(
+                file = file,
+                mimeType = mimeType,
+                expiration = System.currentTimeMillis() + validForMs
+            )
+        )
+
+        return "content://${CLIPBOARD_AUTHORITY}/clip/$request".toUri()
     }
 
     fun fulfillRequest(context: Context, uuid: UUID): ParcelFileDescriptor? {

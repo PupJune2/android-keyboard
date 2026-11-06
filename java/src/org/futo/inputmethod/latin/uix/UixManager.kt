@@ -121,6 +121,7 @@ import org.futo.inputmethod.latin.SupportsNavbarExtension
 import org.futo.inputmethod.latin.common.Constants
 import org.futo.inputmethod.latin.settings.Settings
 import org.futo.inputmethod.latin.suggestions.SuggestionStripViewListener
+import org.futo.inputmethod.latin.uix.actions.clipboard.RecentScreenshot
 import org.futo.inputmethod.latin.uix.actions.ActionEditor
 import org.futo.inputmethod.latin.uix.actions.ActionRegistry
 import org.futo.inputmethod.latin.uix.actions.AllActions
@@ -1556,6 +1557,14 @@ class UixManager(private val latinIME: LatinIME) {
             WindowInfoTracker.getOrCreate(latinIME).windowLayoutInfo(latinIME).collect {
                 foldingOptions.value = FoldingOptions(it.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull())
                 latinIME.invalidateKeyboard(true)
+            }
+        }
+
+        // Offer a newly taken screenshot in the suggestion bar right away, even if the keyboard
+        // is already open
+        latinIME.lifecycleScope.launch(Dispatchers.Main) {
+            RecentScreenshot.updates.collect {
+                quickClipState.value = QuickClip.getCurrentState(latinIME)
             }
         }
 

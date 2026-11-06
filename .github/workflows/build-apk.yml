@@ -1,0 +1,74 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Submodules live on several hosts (GitHub, gitlab.futo.org, Hugging Face), so they are
+      # fetched explicitly. The swipe typing models are stored in Git LFS.
+      - name: Fetch submodules
+        run: |
+          git submodule sync --recursive
+          for attempt in 1 2 3; do
+            git submodule update --init --recursive && break
+            echo "Submodule fetch failed, retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          git submodule status
+          git -C java/assets/futo-swipe lfs install --local
+          git -C java/assets/futo-swipe lfs pull
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compute version
+        run: |
+          # Minutes since epoch: always increases, so newer builds install over older ones
+          echo "VERSION_CODE=$(( $(date +%s) / 60 ))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=clipboard-history-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "BRANCH_NAME=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: ./gradlew assembleUnstableRelease --console=plain
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp build/outputs/apk/unstable/release/*.apk "dist/futo-keyboard-${VERSION_NAME}.apk"
+          ls -la dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: futo-keyboard-${{ env.VERSION_NAME }}
+          path: dist/*.apk
+          if-no-files-found: error

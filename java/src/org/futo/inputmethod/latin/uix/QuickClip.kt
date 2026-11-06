@@ -4,15 +4,18 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,6 +30,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -43,8 +50,14 @@ import androidx.compose.ui.unit.dp
 import org.futo.inputmethod.accessibility.AccessibilityUtils
 import org.futo.inputmethod.latin.R
 import org.futo.inputmethod.latin.common.Constants
+import org.futo.inputmethod.latin.uix.actions.clipboard.ClipboardProviderState
 import org.futo.inputmethod.latin.uix.actions.clipboard.ClipboardQuickClipsEnabled
+import org.futo.inputmethod.latin.uix.actions.clipboard.ClipboardThumbCache
+import org.futo.inputmethod.latin.uix.actions.clipboard.ClipboardUtil
+import org.futo.inputmethod.latin.uix.actions.clipboard.RecentScreenshot
+import org.futo.inputmethod.latin.uix.actions.clipboard.getFile
 import org.futo.inputmethod.latin.uix.theme.Typography
+import java.io.File
 
 enum class QuickClipKind {
     FullString,
@@ -96,7 +109,14 @@ data class QuickClipState(
     val imageMimeTypes: List<String>,
     val validUntil: Long,
     val isSensitive: Boolean,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    // When the clip was copied (or the screenshot taken), used to pick the most recent one
+    val sourceTimestamp: Long = 0L,
+
+    // Set for a recently taken screenshot
+    val isScreenshot: Boolean = false,
+    val imageThumbnail: File? = null,
 )
 
 fun QuickClipState?.filterIfDismissed(): QuickClipState? = when {
@@ -106,7 +126,7 @@ fun QuickClipState?.filterIfDismissed(): QuickClipState? = when {
 }
 
 @Composable
-private fun QuickClipPill(icon: Painter, contentDescription: String, text: String?, uri: Uri?, onActivate: () -> Unit) {
+private fun QuickClipPill(icon: Painter, contentDescription: String, text: String?, uri: Uri?, thumbnail: ImageBitmap? = null, onActivate: () -> Unit) {
     Box(Modifier.fillMaxHeight().clickable {
         onActivate()
     }.padding(4.dp).clearAndSetSemantics {
@@ -128,6 +148,16 @@ private fun QuickClipPill(icon: Painter, contentDescription: String, text: Strin
 
                     if (text != null) {
                         Text(text.replace("\n", " "), style = Typography.Small)
+                    } else if (thumbnail != null) {
+                        Image(
+                            bitmap = thumbnail,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(1.0f)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
                     } else if (uri != null) {
                         Icon(painterResource(R.drawable.image), contentDescription = null)
                     }
@@ -159,11 +189,22 @@ fun RowScope.QuickClipView(state: QuickClipState, dismiss: () -> Unit) {
     LazyRow(Modifier.weight(1.0f)) {
         state.image?.let { uri ->
             item {
+                val thumbnail = remember(state.imageThumbnail) {
+                    state.imageThumbnail?.let { file ->
+                        ClipboardThumbCache.getOrPut(file.name) {
+                            BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                        }
+                    }
+                }
+
                 QuickClipPill(
-                    icon = painterResource(R.drawable.clipboard),
-                    contentDescription = stringResource(R.string.quick_clip_image),
+                    icon = painterResource(if(state.isScreenshot) R.drawable.image else R.drawable.clipboard),
+                    contentDescription = stringResource(
+                        if(state.isScreenshot) R.string.quick_clip_screenshot else R.string.quick_clip_image
+                    ),
                     text = null,
-                    uri = uri
+                    uri = uri,
+                    thumbnail = thumbnail
                 ) {
                     manager!!.performHapticAndAudioFeedback(Constants.CODE_TAB, view)
                     manager!!.typeUri(uri, state.imageMimeTypes)
@@ -227,7 +268,7 @@ object QuickClip {
         timeOfDismissal = System.currentTimeMillis()
     }
 
-    private fun getStateForItem(validUntil: Long, mimeTypes: List<String>, item: ClipData.Item, isSensitive: Boolean): QuickClipState? {
+    private fun getStateForItem(validUntil: Long, mimeTypes: List<String>, item: ClipData.Item, isSensitive: Boolean, sourceTimestamp: Long): QuickClipState? {
         val texts = mutableListOf<QuickClipItem>()
         val currTexts = mutableSetOf<String>()
 
@@ -247,7 +288,8 @@ object QuickClip {
                 image = item.uri,
                 imageMimeTypes = mimeTypes,
                 validUntil = validUntil,
-                isSensitive = isSensitive
+                isSensitive = isSensitive,
+                sourceTimestamp = sourceTimestamp
             )
         }
 
@@ -275,7 +317,8 @@ object QuickClip {
             image = item.uri,
             imageMimeTypes = mimeTypes,
             validUntil = validUntil,
-            isSensitive = isSensitive
+            isSensitive = isSensitive,
+            sourceTimestamp = sourceTimestamp
         )
     }
 
@@ -288,6 +331,38 @@ object QuickClip {
         if(Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
         if(context.getSetting(ClipboardQuickClipsEnabled) == false) return null
 
+        val clipState = getClipboardState(context)
+        val screenshotState = getRecentScreenshotState(context)
+
+        // Show whichever is more recent
+        return when {
+            clipState == null -> screenshotState
+            screenshotState == null -> clipState
+            screenshotState.sourceTimestamp > clipState.sourceTimestamp -> screenshotState
+            else -> clipState
+        }
+    }
+
+    private fun getRecentScreenshotState(context: Context): QuickClipState? {
+        val entry = RecentScreenshot.get() ?: return null
+        if(entry.timestamp < timeOfDismissal) return null
+
+        val file = entry.getFile(context)?.takeIf { it.isFile } ?: return null
+        val mimeType = entry.mimeTypes.firstOrNull() ?: return null
+
+        return QuickClipState(
+            texts = emptyList(),
+            image = ClipboardProviderState.uriForFile(file, mimeType, validForMs = 10L * 60L * 1000L),
+            imageMimeTypes = listOf(mimeType),
+            validUntil = entry.timestamp + RecentScreenshot.SUGGESTION_WINDOW_MS,
+            isSensitive = false,
+            sourceTimestamp = entry.timestamp,
+            isScreenshot = true,
+            imageThumbnail = ClipboardUtil.thumbnailFor(file).takeIf { it.isFile }
+        )
+    }
+
+    private fun getClipboardState(context: Context): QuickClipState? {
         val clipboardManager =
             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
@@ -323,7 +398,8 @@ object QuickClip {
             validUntil = System.currentTimeMillis() + (60L * 1000L),
             item = firstItem,
             mimeTypes = description.mimeTypes,
-            isSensitive = isSensitive
+            isSensitive = isSensitive,
+            sourceTimestamp = timestamp
         ).also {
             cachedPreviousItem = firstItem
             cachedPreviousState = it
