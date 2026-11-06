@@ -13,3 +13,5 @@ java/res/raw/mozc.data
 java/src/org/futo/inputmethod/keyboard/internal/KeyboardTextsTable.java
 
 atl/
+# Kotlin compiler daemon session data
+.kotlin/
